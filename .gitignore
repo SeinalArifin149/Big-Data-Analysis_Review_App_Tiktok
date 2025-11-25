@@ -1,0 +1,39 @@
+# Ignore semua CSV (file data besar)
+*.csv
+
+# Ignore semua model LDA atau ML
+*.gensim
+*.model
+*.pkl
+
+# Ignore Notebook checkpoints
+.ipynb_checkpoints/
+
+# Virtual environment
+venv/
+.env/
+.venv/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Output dari Jupyter nbconvert
+*.html
+*.md
+
+# Data besar lainnya
+*.parquet
+*.hdf5
+*.xlsx
+
+# Folder output analisis
+output/
+results/
+logs/
+
+# Sistem file
+.DS_Store
+Thumbs.db
