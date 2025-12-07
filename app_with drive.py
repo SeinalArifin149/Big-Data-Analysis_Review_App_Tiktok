@@ -1,274 +1,319 @@
-# import streamlit as st
-# # import gdown
-# import pandas as pd
-# import pandas as pd
-# import plotly.express as px
-# import numpy as np
+import streamlit as st
+import pandas as pd
+import plotly.express as px
+import numpy as np
+from wordcloud import WordCloud
+import matplotlib.pyplot as plt
+import gdown
+import os
 
-# # --- Konfigurasi Awal dan Data ---
+# --- Konfigurasi Awal ---
+GDRIVE_FILE_ID = '1vpLw46rVIJo9kdagyVNS0Z--8P94xKWd'
+GDRIVE_URL = f'https://drive.google.com/uc?id={GDRIVE_FILE_ID}'
+LOCAL_CSV_PATH = 'hasil_akhir_sentiment_per_topic.csv'
 
-# # GDRIVE_URL = "https://drive.google.com/file/d/1vpLw46rVIJo9kdagyVNS0Z--8P94xKWd/view?usp=drive_link"
-# # LOCAL_CSV_NAME = 'Dataset_Review-Tiktok.csv'
-# # SENTIMENT_COLS = ['Sentiment_NB Negatif', 'Sentiment_NB Positif']
+st.set_page_config(
+    page_title="Aplikasi Analisis Sentimen TikTok",
+    layout="wide",
+    initial_sidebar_state="expanded"
+)
 
-# st.set_page_config(
-#     page_title="Aplikasi Analisis Sentimen TikTok",
-#     layout="wide",
-#     initial_sidebar_state="expanded"
-# )
+# --- 1. Fungsi Download dari Google Drive ---
+@st.cache_data
+def download_from_drive(url, output_path):
+    """Download file dari Google Drive menggunakan gdown."""
+    try:
+        if not os.path.exists(output_path):
+            with st.spinner('⏳ Mengunduh data dari Google Drive...'):
+                gdown.download(url, output_path, quiet=False, fuzzy=True)
+            st.success("✅ File berhasil diunduh dari Google Drive!")
+        else:
+            st.info(f"ℹ️ File '{output_path}' sudah ada, menggunakan file lokal.")
+        return True
+    except Exception as e:
+        st.error(f"❌ Gagal mengunduh file: {e}")
+        return False
 
-# # --- 1. Fungsi Pemuatan Data dan Cache ---
-
-# @st.cache_data
-# def download_data(url, output_name):
-#     """Mengunduh file dari Google Drive menggunakan gdown."""
-#     try:
-#         # Mengambil ID file dari URL
-#         file_id = url.split('/')[-2]
-#         st.info(f"Mengunduh data dari Google Drive (ID: {file_id}). Ini mungkin membutuhkan waktu sebentar.")
+# --- 2. Fungsi Pemuatan Data ---
+@st.cache_data
+def load_and_preprocess_data(filepath):
+    """Memuat dan memproses data CSV."""
+    try:
+        df = pd.read_csv(filepath)
         
-#         # URL untuk gdown
-#         # download_url = f'https://drive.google.com/uc?id={file_id}'
-#         gdown.download(download_url, output_name, quiet=False)
-#         return True
-#     except Exception as e:
-#         st.error(f"Gagal mengunduh file: {e}")
-#         return False
-
-# @st.cache_data
-# def load_and_preprocess_data(filename):
-#     """Memuat data, membersihkan, dan melakukan pre-processing."""
-#     try:
-#         # Memuat data
-#         df = pd.read_csv(filename)
+        # Validasi kolom yang diperlukan
+        if 'at' not in df.columns:
+            st.error("❌ Kolom 'at' tidak ditemukan!")
+            return pd.DataFrame()
         
-#         # Mengubah kolom 'at' (tanggal) ke tipe datetime
-#         df['at'] = pd.to_datetime(df['at'])
+        # Konversi kolom tanggal
+        df['at'] = pd.to_datetime(df['at'], errors='coerce')
+        df = df.dropna(subset=['at'])
         
-#         # Menambahkan kolom Sentimen Tunggal (untuk memudahkan)
-#         # Asumsi: Jika Positif > Negatif -> Positif, sebaliknya Negatif, atau bisa dibuat 'Netral'
-#         df['Sentiment'] = np.where(
-#             df['Sentiment_NB Positif'] > df['Sentiment_NB Negatif'],
-#             'Positif',
-#             'Negatif'
-#         )
+        if df.empty:
+            st.error("❌ Tidak ada data dengan tanggal valid!")
+            return pd.DataFrame()
         
-#         st.success("Data berhasil dimuat dan diproses!")
-#         return df
-#     except Exception as e:
-#         st.error(f"Gagal memuat atau memproses data: {e}")
-#         return pd.DataFrame()
-
-
-# # --- 2. Implementasi Halaman ---
-
-# def home_page(df):
-#     """Menampilkan analisis per Topik."""
-#     st.title("🏡 Analisis Sentimen Berdasarkan Topik")
-#     st.markdown("Pilih satu atau lebih topik untuk melihat distribusi sentimen dan trennya.")
-    
-#     # Sidebar Filter Topik
-#     unique_topics = df['Label_Topik'].unique().tolist()
-#     selected_topics = st.sidebar.multiselect(
-#         "Pilih Topik untuk Analisis:",
-#         options=unique_topics,
-#         default=unique_topics[0] if unique_topics else []
-#     )
-    
-#     if not selected_topics:
-#         st.warning("Silakan pilih setidaknya satu Topik dari sidebar.")
-#         return
-
-#     df_filtered = df[df['Label_Topik'].isin(selected_topics)]
-    
-#     if df_filtered.empty:
-#         st.info("Tidak ada data untuk topik yang dipilih.")
-#         return
-
-#     st.header(f"Ringkasan untuk Topik: {', '.join(selected_topics)}")
-    
-#     # 1. Bar Chart Sentimen per Topik
-#     topic_sentiment_count = df_filtered.groupby(['Label_Topik', 'Sentiment']).size().reset_index(name='Jumlah')
-    
-#     fig1 = px.bar(
-#         topic_sentiment_count,
-#         x='Sentiment',
-#         y='Jumlah',
-#         color='Sentiment',
-#         facet_col='Label_Topik',
-#         title='Distribusi Sentimen (Positif vs Negatif) per Topik',
-#         color_discrete_map={'Positif': 'green', 'Negatif': 'red'}
-#     )
-#     st.plotly_chart(fig1, use_container_width=True)
-    
-#     # 2. Distribusi Ulasan dari Waktu ke Waktu untuk Topik ini
-#     df_filtered_daily = df_filtered.set_index('at').resample('D').size().reset_index(name='Jumlah Ulasan')
-#     fig2 = px.line(
-#         df_filtered_daily,
-#         x='at',
-#         y='Jumlah Ulasan',
-#         title=f'Volume Ulasan dari Waktu ke Waktu (Topik: {", ".join(selected_topics)})'
-#     )
-#     st.plotly_chart(fig2, use_container_width=True)
-
-
-# def data_page(df):
-#     """Menampilkan distribusi Sentimen Global."""
-#     st.title("📈 Distribusi Sentimen Global")
-#     st.markdown("Analisis keseluruhan sentimen di seluruh dataset, dipecah berdasarkan topik.")
-    
-#     total_reviews = len(df)
-#     sentiment_counts = df['Sentiment'].value_counts()
-    
-#     # Metrik Global
-#     col1, col2, col3 = st.columns(3)
-#     col1.metric("Total Ulasan", f"{total_reviews:,}")
-    
-#     if 'Positif' in sentiment_counts:
-#         pos_count = sentiment_counts.get('Positif', 0)
-#         pos_percentage = (pos_count / total_reviews) * 100
-#         col2.metric("Total Positif", f"{pos_count:,}", f"{pos_percentage:.1f}%")
+        # Tambahkan kolom bulan
+        df['year_month'] = df['at'].dt.to_period('M')
+        df['month_name'] = df['at'].dt.strftime('%B %Y')
         
-#     if 'Negatif' in sentiment_counts:
-#         neg_count = sentiment_counts.get('Negatif', 0)
-#         neg_percentage = (neg_count / total_reviews) * 100
-#         col3.metric("Total Negatif", f"{neg_count:,}", f"{neg_percentage:.1f}%")
+        # Validasi kolom sentimen
+        if 'Sentiment_NB' in df.columns:
+            df['Sentiment'] = df['Sentiment_NB']
+        else:
+            st.error("❌ Kolom 'Sentiment_NB' tidak ditemukan!")
+            return pd.DataFrame()
+        
+        st.success("✅ Data berhasil dimuat dan diproses!")
+        return df
+        
+    except Exception as e:
+        st.error(f"❌ Error memproses data: {e}")
+        return pd.DataFrame()
 
-#     st.subheader("Proporsi Sentimen Keseluruhan")
-#     fig3 = px.pie(
-#         names=sentiment_counts.index,
-#         values=sentiment_counts.values,
-#         title='Proporsi Sentimen Positif vs Negatif',
-#         color_discrete_map={'Positif': 'green', 'Negatif': 'red'}
-#     )
-#     st.plotly_chart(fig3, use_container_width=True)
+# --- 3. Halaman-Halaman ---
+
+def data_page(df):
+    """Halaman Utama: Distribusi Sentimen Global."""
+    st.header("📈 Distribusi Sentimen Global")
+    st.markdown("Ringkasan statistik sentimen dari seluruh data.")
     
-#     st.subheader("Perbandingan Sentimen Lintas Topik")
-#     # Bar Chart Agregat Sentimen per Topik
-#     df_topic_summary = df.groupby('Label_Topik')['Sentiment'].value_counts().unstack(fill_value=0)
-#     df_topic_summary['Total'] = df_topic_summary.sum(axis=1)
-#     df_topic_summary = df_topic_summary.sort_values(by='Total', ascending=False).reset_index()
+    # Sidebar Filter
+    st.sidebar.divider()
+    st.sidebar.subheader("Filter Data")
+    unique_months = sorted(df['month_name'].unique().tolist())
+    selected_months = st.sidebar.multiselect(
+        "Pilih Bulan:", options=unique_months, default=unique_months, key="data_filter"
+    )
     
-#     fig4 = px.bar(
-#         df_topic_summary.melt(id_vars=['Label_Topik'], value_vars=['Positif', 'Negatif'], var_name='Sentiment', value_name='Jumlah'),
-#         x='Label_Topik',
-#         y='Jumlah',
-#         color='Sentiment',
-#         title='Jumlah Ulasan Positif dan Negatif per Label Topik',
-#         color_discrete_map={'Positif': 'green', 'Negatif': 'red'}
-#     )
-#     st.plotly_chart(fig4, use_container_width=True)
-
-
-# def about_page(df):
-#     """Menampilkan Analisis Sentimen Temporal."""
-#     st.title("⏰ Analisis Sentimen Temporal (Waktu ke Waktu)")
-#     st.markdown("Lihat bagaimana sentimen ulasan berubah seiring berjalannya waktu.")
-
-#     # Sidebar Filter Tanggal
-#     min_date = df['at'].min().date()
-#     max_date = df['at'].max().date()
+    if not selected_months:
+        st.warning("⚠️ Pilih bulan di sidebar.")
+        return
+        
+    df_filtered = df[df['month_name'].isin(selected_months)]
     
-#     date_range = st.sidebar.date_input(
-#         "Pilih Rentang Tanggal:",
-#         value=(min_date, max_date),
-#         min_value=min_date,
-#         max_value=max_date
-#     )
+    # Metrik
+    total = len(df_filtered)
+    counts = df_filtered['Sentiment'].value_counts()
     
-#     # Pastikan rentang tanggal dipilih dengan benar
-#     if len(date_range) == 2:
-#         start_date, end_date = date_range
-#         df_time_filtered = df[(df['at'].dt.date >= start_date) & (df['at'].dt.date <= end_date)]
-#     else:
-#         st.warning("Pilih rentang tanggal yang valid.")
-#         return
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Total Ulasan", f"{total:,}")
+    if 'Positif' in counts:
+        c2.metric("Positif", f"{counts['Positif']:,}", f"{(counts['Positif']/total)*100:.1f}%")
+    if 'Negatif' in counts:
+        c3.metric("Negatif", f"{counts['Negatif']:,}", f"{(counts['Negatif']/total)*100:.1f}%")
 
-#     if df_time_filtered.empty:
-#         st.info("Tidak ada data dalam rentang tanggal yang dipilih.")
-#         return
+    # Chart Pie & Bar
+    c_chart1, c_chart2 = st.columns(2)
+    with c_chart1:
+        st.subheader("Proporsi Sentimen")
+        fig = px.pie(names=counts.index, values=counts.values, 
+                    color_discrete_map={'Positif':'green', 'Negatif':'red'})
+        st.plotly_chart(fig, use_container_width=True)
+        
+    with c_chart2:
+        st.subheader("Sentimen per Topik")
+        df_top = df_filtered.groupby('topic')['Sentiment'].value_counts().unstack(fill_value=0).reset_index()
+        cols_available = [c for c in ['Positif', 'Negatif'] if c in df_top.columns]
+        df_top['Total'] = df_top[cols_available].sum(axis=1)
+        df_top = df_top.sort_values('Total', ascending=False)
+        
+        df_melted = df_top.melt(id_vars='topic', value_vars=cols_available, 
+                               var_name='Sentiment', value_name='Jml')
+        
+        fig2 = px.bar(df_melted, x='topic', y='Jml', color='Sentiment', 
+                     color_discrete_map={'Positif':'green', 'Negatif':'red'})
+        st.plotly_chart(fig2, use_container_width=True)
 
-#     # Hitung tren sentimen harian
-#     df_daily_sentiment = df_time_filtered.groupby([df_time_filtered['at'].dt.date, 'Sentiment']).size().unstack(fill_value=0).reset_index()
-#     df_daily_sentiment.columns = ['Date', 'Negatif', 'Positif']
-#     df_daily_sentiment['Date'] = pd.to_datetime(df_daily_sentiment['Date'])
+def home_page(df):
+    """Halaman Detail per Topik."""
+    st.header("🏡 Analisis Detail per Topik")
     
-#     # Plot Tren Sentimen
-#     df_plot = df_daily_sentiment.melt('Date', var_name='Sentiment', value_name='Count')
-
-#     fig5 = px.line(
-#         df_plot,
-#         x='Date',
-#         y='Count',
-#         color='Sentiment',
-#         title=f'Tren Jumlah Ulasan Positif dan Negatif ({start_date} hingga {end_date})',
-#         color_discrete_map={'Positif': 'green', 'Negatif': 'red'}
-#     )
-#     fig5.update_xaxes(title_text="Tanggal")
-#     fig5.update_yaxes(title_text="Jumlah Ulasan")
-#     st.plotly_chart(fig5, use_container_width=True)
-
-
-# def welcome_page():
-#     """Halaman Selamat Datang."""
-#     st.title("👋 Selamat Datang di Aplikasi Analisis Sentimen TikTok")
-#     st.header("Analisis Data Ulasan TikTok")
-#     st.info("Gunakan navigasi di atas untuk menjelajahi wawasan sentimen berdasarkan **Topik**, **Distribusi Sentimen Global**, dan **Tren Temporal**.")
-#     st.image("https://images.unsplash.com/photo-1629731637777-62f91361c4f1?fit=crop&w=1200&h=600", caption="Ilustrasi Analisis Data")
-
-
-# # --- 3. Main Aplikasi ---
-
-# # State Management (Menggunakan query params untuk menjaga state antar tombol)
-# query_params = st.query_params
-
-# # Inisialisasi state halaman
-# if "page" not in query_params:
-#     st.query_params["page"] = "welcome"
-
-# # Header dan Navigasi
-# st.sidebar.title("Kontrol Data")
-# st.title("Dashboard Analisis Sentimen")
-
-# # --- Tombol Navigasi ---
-# col1, col2, col3 = st.columns(3)
-
-# if col1.button("🏡 Topik"):
-#     st.query_params["page"] = "home"
-# if col2.button("📈 Sentiment"):
-#     st.query_params["page"] = "data"
-# if col3.button("⏰ Temporal Sentiment"):
-#     st.query_params["page"] = "about"
-
-# # --- 4. Proses Loading Data ---
-# if download_data(GDRIVE_URL, LOCAL_CSV_NAME):
-#     df = load_and_preprocess_data(LOCAL_CSV_NAME)
-# else:
-#     # Tampilkan halaman selamat datang atau pesan error jika gagal memuat
-#     df = pd.DataFrame()
-#     if st.query_params["page"] != "welcome":
-#         st.error("Tidak dapat memuat data. Silakan cek koneksi atau URL Google Drive.")
-#         st.query_params["page"] = "welcome"
-
-
-# # --- 5. Routing Halaman ---
-# if not df.empty:
-#     page = st.query_params["page"]
+    st.sidebar.divider()
+    st.sidebar.subheader("Filter Topik")
+    topics = df['topic'].unique().tolist()
+    sel_topic = st.sidebar.multiselect("Pilih Topik:", options=topics, 
+                                       default=[topics[0]] if topics else [])
     
-#     st.divider() # Pemisah visual
+    months = sorted(df['month_name'].unique().tolist())
+    sel_month = st.sidebar.multiselect("Pilih Bulan:", options=months, 
+                                       default=months, key="topic_filter_month")
     
-#     if page == "home":
-#         home_page(df)
-#     elif page == "data":
-#         data_page(df)
-#     elif page == "about":
-#         about_page(df)
-#     elif page == "welcome":
-#         welcome_page()
-# else:
-#     # Tampilkan selamat datang hanya jika belum ada data dan belum ada error
-#     if st.query_params["page"] == "welcome":
-#         welcome_page()
+    if not sel_topic or not sel_month:
+        st.warning("⚠️ Pilih topik dan bulan.")
+        return
 
-# st.sidebar.divider()
-# st.sidebar.caption("Dibuat dengan Streamlit & Plotly")
+    df_f = df[(df['topic'].isin(sel_topic)) & (df['month_name'].isin(sel_month))]
+    
+    if df_f.empty:
+        st.info("ℹ️ Data kosong.")
+        return
+
+    # Chart
+    fig = px.bar(df_f.groupby(['topic', 'Sentiment']).size().reset_index(name='Jml'), 
+                 x='Sentiment', y='Jml', color='Sentiment', facet_col='topic',
+                 color_discrete_map={'Positif':'green', 'Negatif':'red'})
+    st.plotly_chart(fig, use_container_width=True)
+
+def about_page(df):
+    """Halaman Tren Waktu dengan 3 Tab."""
+    st.header("⏰ Analisis Tren Waktu")
+    
+    st.sidebar.divider()
+    st.sidebar.subheader("Filter Waktu Global")
+    months = sorted(df['month_name'].unique().tolist())
+    sel_month = st.sidebar.multiselect("Pilih Bulan:", options=months, 
+                                       default=months, key="time_filter")
+    
+    if not sel_month:
+        st.warning("⚠️ Silakan pilih bulan.")
+        return
+    
+    df_f = df[df['month_name'].isin(sel_month)]
+    
+    tab1, tab2, tab3 = st.tabs(["📊 Tren Sentimen Global", "🔥 Tren Popularitas Topik", 
+                                "🎯 Tren Spesifik per Topik"])
+
+    with tab1:
+        st.subheader("Pergerakan Sentimen Harian")
+        daily = df_f.groupby([df_f['at'].dt.date, 'Sentiment']).size().reset_index(name='Jml')
+        fig1 = px.line(daily, x='at', y='Jml', color='Sentiment', 
+                      color_discrete_map={'Positif':'green', 'Negatif':'red'}, markers=True)
+        st.plotly_chart(fig1, use_container_width=True)
+
+    with tab2:
+        st.subheader("Pergerakan Popularitas Topik")
+        daily_topic = df_f.groupby([df_f['at'].dt.date, 'topic']).size().reset_index(name='Jml')
+        fig2 = px.line(daily_topic, x='at', y='Jml', color='topic', markers=True)
+        fig2.update_layout(hovermode="x unified")
+        st.plotly_chart(fig2, use_container_width=True)
+
+    with tab3:
+        st.subheader("Analisis Mendalam: Topik & Sentimen Spesifik")
+        c1, c2 = st.columns(2)
+        topic_opt = sorted(df_f['topic'].unique())
+        choosen_topic = c1.selectbox("Pilih Topik:", topic_opt)
+        choosen_sentiment = c2.radio("Pilih Sentimen:", ["Positif", "Negatif"], horizontal=True)
+        
+        df_detail = df_f[(df_f['topic'] == choosen_topic) & 
+                        (df_f['Sentiment'] == choosen_sentiment)]
+        
+        if not df_detail.empty:
+            daily_detail = df_detail.groupby(df_detail['at'].dt.date).size().reset_index(name='Jml')
+            color_map = 'green' if choosen_sentiment == 'Positif' else 'red'
+            fig3 = px.line(daily_detail, x='at', y='Jml', markers=True)
+            fig3.update_traces(line_color=color_map)
+            st.plotly_chart(fig3, use_container_width=True)
+            
+            with st.expander("Lihat Data Mentah"):
+                text_col = 'final_text' if 'final_text' in df.columns else 'content'
+                cols_show = ['at', 'userName', text_col, 'Sentiment'] if 'userName' in df.columns else ['at', text_col, 'Sentiment']
+                st.dataframe(df_detail[cols_show].sort_values('at', ascending=False), 
+                           use_container_width=True)
+        else:
+            st.warning("⚠️ Data tidak ditemukan untuk kombinasi ini.")
+
+def wordcloud_page(df):
+    """Halaman Visualisasi Word Cloud."""
+    st.header("☁️ Word Cloud Analysis")
+    st.markdown("Visualisasi kata-kata yang paling sering muncul berdasarkan sentimen.")
+    
+    st.sidebar.divider()
+    st.sidebar.subheader("Filter Word Cloud")
+    
+    months = sorted(df['month_name'].unique().tolist())
+    sel_month = st.sidebar.multiselect("Pilih Bulan:", options=months, 
+                                       default=months, key="wc_month")
+    
+    sentiment_opt = st.sidebar.radio("Pilih Sentimen:", 
+                                    ["Positif", "Negatif", "Gabungan (Semua)"], 
+                                    key="wc_sentiment")
+    
+    if not sel_month:
+        st.warning("⚠️ Silakan pilih setidaknya satu bulan di sidebar.")
+        return
+
+    df_wc = df[df['month_name'].isin(sel_month)]
+    
+    if sentiment_opt == "Positif":
+        df_wc = df_wc[df_wc['Sentiment'] == 'Positif']
+        colormap_style = "Greens" # Nuansa Hijau
+    elif sentiment_opt == "Negatif":
+        df_wc = df_wc[df_wc['Sentiment'] == 'Negatif']
+        colormap_style = "Reds"   # Nuansa Merah
+    else:
+        colormap_style = "viridis" # Warna-warni
+
+    if df_wc.empty:
+        st.info(f"Tidak ada data ulasan {sentiment_opt} pada bulan yang dipilih.")
+        return
+
+    # 3. Ambil Teks
+    # Cek kolom mana yang berisi teks bersih (final_text atau content)
+    text_col = 'final_text' if 'final_text' in df.columns else 'content'
+    
+    # Gabungkan semua teks menjadi satu string panjang
+    all_text = " ".join(df_wc[text_col].astype(str).tolist())
+    
+    if not all_text.strip():
+        st.warning("Data teks kosong, tidak bisa membuat Word Cloud.")
+        return
+
+    # 4. Generate Word Cloud
+    # Anda bisa menambahkan parameter stopwords=set(['kata', 'sambung']) jika ingin menghapus kata umum
+    wc = WordCloud(
+        width=800, 
+        height=400, 
+        background_color='white', 
+        colormap=colormap_style,
+        min_font_size=10
+    ).generate(all_text)
+
+    # 5. Tampilkan Plot
+    st.subheader(f"Word Cloud: {sentiment_opt}")
+    st.caption(f"Berdasarkan {len(df_wc)} ulasan pada periode: {', '.join(sel_month)}")
+    
+    fig, ax = plt.subplots(figsize=(10, 5))
+    ax.imshow(wc, interpolation='bilinear')
+    ax.axis("off")
+    st.pyplot(fig)
+    
+    # Tampilkan sampel ulasan
+    with st.expander(f"Lihat Sampel Ulasan ({sentiment_opt})"):
+        st.dataframe(df_wc[[text_col, 'Sentiment']].head(10), use_container_width=True)
+
+
+def welcome_page():
+    st.title("Tentang Aplikasi")
+    st.info("Aplikasi Dashboard Analisis Sentimen TikTok.")
+
+# --- 3. Main Logic (Navigasi) ---
+df = load_and_preprocess_data(LOCAL_CSV_PATH)
+
+# Definisi Menu
+MENU_OPTIONS = {
+    "📈 Distribusi Sentimen": "data",
+    "🏡 Analisis Topik": "home",
+    "⏰ Tren Waktu": "about",
+    "☁️ Word Cloud": "wordcloud", # <--- Menu Baru
+    "ℹ️ Info Aplikasi": "welcome"
+}
+
+st.sidebar.title("Navigasi")
+selection = st.sidebar.radio("Pilih Halaman:", list(MENU_OPTIONS.keys()))
+page = MENU_OPTIONS[selection]
+
+if not df.empty:
+    if page == "data":
+        data_page(df)
+    elif page == "home":
+        home_page(df)
+    elif page == "about":
+        about_page(df)
+    elif page == "wordcloud":
+        wordcloud_page(df) # <--- Panggil fungsi baru
+    elif page == "welcome":
+        welcome_page()
+else:
+    st.warning("Menunggu data...")
