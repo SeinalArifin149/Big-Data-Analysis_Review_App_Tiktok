@@ -1,2 +1,8 @@
 streamlit
+pandas
+plotly
+numpy
+wordcloud
+matplotlib
+seaborn
 gdown
