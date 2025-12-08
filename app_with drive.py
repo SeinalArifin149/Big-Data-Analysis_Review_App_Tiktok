@@ -445,7 +445,7 @@ MENU_OPTIONS = {
     "🏡 Analisis Topik": "home",
     "⏰ Tren Waktu": "about",
     "☁️ Word Cloud": "wordcloud",
-    "📱 Analisis Aspek (UI/UX)": "aspect",
+    "📱 Analisis Aspek berbasi ABSA": "aspect",
     "ℹ️ Info Aplikasi": "welcome"
 }
 
