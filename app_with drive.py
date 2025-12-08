@@ -244,6 +244,16 @@ def home_page(df):
         return
 
     df_f = df[(df['topic'].isin(sel_topic)) & (df['month_name'].isin(sel_month))]
+    
+    # === DISTRIBUSI JUMLAH DATA DI SIDEBAR ===
+    if not df_f.empty:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔢 Distribusi Data (Terfilter)")
+        topic_counts = df_f['topic'].value_counts().reset_index()
+        topic_counts.columns = ['Topik', 'Jumlah']
+        st.sidebar.dataframe(topic_counts, hide_index=True, use_container_width=True)
+    # =========================================
+
     if df_f.empty: st.info("Data kosong."); return
 
     fig = px.bar(df_f.groupby(['topic', 'Sentiment']).size().reset_index(name='Jml'), 
@@ -263,6 +273,15 @@ def about_page(df):
     if not sel_month: st.warning("Silakan pilih bulan."); return
     
     df_f = df[df['month_name'].isin(sel_month)]
+
+    # === DISTRIBUSI JUMLAH DATA DI SIDEBAR ===
+    if not df_f.empty:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔢 Jumlah Data per Topik")
+        topic_counts_trend = df_f['topic'].value_counts().reset_index()
+        topic_counts_trend.columns = ['Topik', 'Jumlah']
+        st.sidebar.dataframe(topic_counts_trend, hide_index=True, use_container_width=True)
+    # =========================================
     
     tab1, tab2, tab3 = st.tabs(["📊 Tren Sentimen Global", "🔥 Tren Popularitas Topik", "🎯 Tren Spesifik per Topik"])
 
@@ -372,12 +391,10 @@ def aspect_analysis_page():
     selected_months = st.sidebar.multiselect(
         "Pilih Bulan Aspek:", 
         options=list_bulan, 
-        default=[list_bulan[-1]] if list_bulan else [], 
+        default=list_bulan, # DEFAULT: SEMUA BULAN (ALL MONTHS)
         key="aspect_month_selector"
     )
     
-    st.sidebar.info(f"Total data: {len(df_proc)} ulasan.")
-
     # --- TABS VISUALISASI ---
     tab1, tab2, tab3 = st.tabs(["📊 Analisis Keseluruhan", "📈 Analisis Filter Bulan", "📥 Data Hasil"])
     
