@@ -396,7 +396,7 @@ def aspect_analysis_page():
     )
     
     # --- TABS VISUALISASI ---
-    tab1, tab2, tab3 = st.tabs(["📊 Analisis Keseluruhan", "📈 Analisis Filter Bulan", "📥 Data Hasil"])
+    tab1, tab2 = st.tabs(["📊 Analisis Keseluruhan", "📈 Analisis Filter Bulan"])
     
     # Tab 1: Total
     with tab1:
@@ -431,19 +431,6 @@ def aspect_analysis_page():
                 st.warning("Tidak ada data aspek ditemukan pada bulan yang dipilih.")
         else:
             st.warning("Silakan pilih bulan di sidebar.")
-
-    # Tab 3: Data
-    with tab3:
-        st.subheader("Data Hasil Analisis")
-        st.dataframe(df_proc[['content_clean', 'sentiment', 'aspek_sentimen_str']].head(100))
-        
-        csv_buffer = df_proc.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download CSV Lengkap",
-            data=csv_buffer,
-            file_name="tiktok_sentiment_with_aspects.csv",
-            mime="text/csv"
-        )
 
 def welcome_page():
     st.title("Tentang Aplikasi")
