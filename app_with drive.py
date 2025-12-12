@@ -335,7 +335,7 @@ def wordcloud_page(df):
     
     if sentiment_opt == "Positif":
         df_wc = df_wc[df_wc['Sentiment'] == 'Positif']
-        colormap_style = "Greens"
+        colormap_style = "Blues"  # Ubah dari "Greens" ke "Pinks"
     elif sentiment_opt == "Negatif":
         df_wc = df_wc[df_wc['Sentiment'] == 'Negatif']
         colormap_style = "Reds"
