@@ -4,55 +4,98 @@ import plotly.express as px
 import numpy as np
 from wordcloud import WordCloud
 import matplotlib.pyplot as plt
-import seaborn as sns # Tambahan library untuk chart aspek
+import seaborn as sns
 import os
+import gdown # Library to download from GDrive
 
 # ==========================================
-# 1. KONFIGURASI HALAMAN & GLOBAL VARIABEL
+# 1. PAGE CONFIGURATION & GLOBAL VARIABLES
 # ==========================================
 st.set_page_config(
-    page_title="Aplikasi Analisis Sentimen TikTok",
+    page_title="TikTok Sentiment Analysis App",
     layout="wide",
     initial_sidebar_state="expanded"
 )
 
-# Path file CSV
-# Pastikan kedua file ini ada di folder yang sama!
-CSV_TOPIK_PATH = 'hasil_akhir_sentiment_per_topic.csv'
-CSV_ASPEK_PATH = 'tiktok_sentiment_analysis_results.csv'
+# ==========================================
+# 2. GOOGLE DRIVE DOWNLOAD FUNCTION
+# ==========================================
+@st.cache_resource
+def download_files_from_drive():
+    """
+    Downloads files from Google Drive if not present locally.
+    Uses @st.cache_resource to avoid re-downloading on rerun.
+    """
+    
+    files = {
+        "topik": {
+            "id": "1r144e9zc9ZiISHIKRDPbOQOVtSMCc3Fw",
+            "output": "hasil_akhir_sentiment_per_topic.csv"
+        },
+        "aspek": {
+            "id": "1bn9ljnD9c__QIJ6oA1b-567j977X9_aO",
+            "output": "tiktok_sentiment_analysis_results.csv"
+        }
+    }
+    
+    paths = {}
+    
+    for key, info in files.items():
+        output_path = info["output"]
+        if not os.path.exists(output_path):
+            with st.spinner(f"Downloading {key} data from Google Drive..."):
+                url = f'https://drive.google.com/uc?id={info["id"]}'
+                gdown.download(url, output_path, quiet=False)
+        paths[key] = output_path
+        
+    return paths["topik"], paths["aspek"]
+
+# --- EXECUTE DOWNLOAD ---
+try:
+    CSV_TOPIK_PATH, CSV_ASPEK_PATH = download_files_from_drive()
+except Exception as e:
+    st.error(f"Failed to download files from Google Drive: {e}")
+    # Fallback filename to avoid total crash
+    CSV_TOPIK_PATH = 'hasil_akhir_sentiment_per_topic.csv'
+    CSV_ASPEK_PATH = 'tiktok_sentiment_analysis_results.csv'
+
 
 # ==========================================
-# 2. DICTIONARY ASPEK (Global)
+# 3. ASPECT DICTIONARY (Global)
 # ==========================================
+# Keys translated to English for Chart Labels. Values kept in Indonesian for matching.
 ASPEK_DICT = {
     "UI/UX": ["tampilan", "antarmuka", "desain", "tema", "warna", "navigasi", "ikon", "huruf", "gelap", "mudah", "transisi", "animasi", "responsif", "sederhana", "praktis", "scroll", "gerakan", "malam", "ikonografi", "struktur", "interaktif", "dasbor", "menu", "submenu", "tipografi", "keterbacaan", "akses", "pintasan", "seret", "cubitan", "perbesar", "sentuhan", "geser", "hambatan", "grid", "petunjuk", "widget", "slider", "tab", "panel", "breadcrumb", "tooltip", "popup", "tablet", "ponsel", "alur", "microinteraksi", "jelas", "kontras", "intuitif", "fokus", "efek", "keseragaman", "terang", "gelap", "aksesibilitas", "bersih", "simbol", "mudah dipahami", "fluid", "responsif", "tata letak", "geser seret", "sapuan", "sentuh", "pintasan", "layar penuh", "minimalis", "transparan", "sorot", "kontras", "padding", "margin", "ramah pengguna", "gesture sentuh", "drag & drop"],
-    "Fitur": ["fitur", "fungsi", "pembaruan", "filter", "efek", "stiker", "emoji", "duet", "gabung", "siaran", "unduh", "unggah", "edit", "rekam", "musik", "suara", "daftar putar", "komen", "obrolan", "cerita", "sorotan", "templat", "tanda", "pin", "penanda", "multiakun", "sinkronisasi", "simpan", "otomatis", "rekomendasi", "draft", "pemberitahuan", "ulang", "bagikan", "cadangan", "pulihkan", "impor", "ekspor", "perpustakaan", "konten", "penyesuaian", "potong", "privat", "publik", "caption", "lokasi", "rekaman", "langsung", "transisi", "kecepatan", "kolaborasi", "animasi", "watermark", "mode gelap", "pintasan", "loop", "pin video", "favorit", "sorot", "simpan otomatis", "duet teman", "kolaborasi", "reaksi cerita", "musik cerita", "tag", "mention", "polling", "stiker cerita", "jadwal posting"],
-    "Performa": ["cepat", "lambat", "lemot", "macet", "kesalahan", "memuat", "tutup", "terhenti", "bug", "beku", "tertunda", "fps", "optimal", "stabil", "respon", "memori", "prosesor", "grafik", "restart", "buffering", "panas", "waktu", "buruk", "ram", "baterai", "segarkan", "timeout", "drop", "perlambatan", "freeze", "lag", "loading", "macet klik", "panas berlebih", "cpu", "gpu", "refresh", "input", "server", "antarmuka", "pembaruan", "reaksi", "konten", "kecepatan", "lancar", "jitter", "lambat", "tunda", "crash", "hang", "restart aplikasi", "lag", "stutter", "startup", "shutdown", "boot", "fps drop", "gerakan lambat", "glitch"],
-    "Keamanan": ["privasi", "izin", "keamanan", "data", "akun", "blokir", "tangguh", "peretas", "penipuan", "kata sandi", "enkripsi", "otp", "phishing", "ilegal", "verifikasi", "pelacakan", "bocor", "login", "perlindungan", "autentikasi", "pemulihan", "captcha", "virus", "spam", "tautan", "pemantauan", "identitas", "sadap", "transaksi", "logout", "pengaturan", "sidik jari", "wajah", "lokasi", "sensitif", "aman", "pihak ketiga", "notifikasi", "peringatan", "firewall", "antivirus", "cadangan", "keamanan data", "token", "hash", "verifikasi otp", "aman", "enkripsi AES", "TLS", "multi-faktor", "authenticator", "perlindungan data", "intrusi", "malware", "perekam tombol", "kebocoran privasi", "peringatan keamanan"],
-    "Layanan": ["layanan", "dukungan", "respon", "admin", "cs", "bantuan", "komplain", "laporan", "masukan", "obrolan", "tiket", "solusi", "panduan", "manual", "email", "tindak lanjut", "tutorial", "qa", "call center", "video", "teknis", "pengguna", "jawaban", "sopan", "lambat", "keluhan", "komunitas", "panduan lengkap", "dukungan", "helpdesk", "responsif", "sistem tiket", "umpan balik", "pemecahan masalah", "pelanggan", "servis desk", "obrolan langsung", "respon", "sla", "bantuan", "penyelesaian masalah", "panduan"],
-    "Konten": ["konten", "video", "vidio", "viral", "tren", "tantangan", "negatif", "dewasa", "edukasi", "musik", "rekomendasi", "humor", "informasi", "berita", "mode", "kecantikan", "permainan", "kuliner", "tutorial", "ulasan", "unboxing", "cerita", "blog", "artikel", "headline", "infografis", "siaran", "reaksi", "parodi", "kolaborasi", "menarik", "baru", "pendek", "panjang", "lucu", "instruktif", "hiburan", "review", "pendidikan", "dokumenter", "podcast", "siaran langsung", "shorts", "sorotan", "sinematik", "klip viral"],
-    "Iklan": ["iklan", "berbayar", "koin", "hadiah", "dana", "penghasilan", "monetisasi", "sponsor", "promo", "langganan", "konten", "voucher", "kupon", "cashback", "harga", "ongkir", "pengiriman", "resi", "pelacakan", "kurir", "paket", "retur", "refund", "penukaran", "bayar", "pembayaran", "transfer", "saldo", "dompet", "invoice", "tagihan", "garansi", "status", "preorder", "cod", "kartu", "debit", "ewallet", "flash", "wishlist", "pengiriman", "pelacakan", "pengiriman paket", "pesanan", "penjual", "toko", "keranjang belanja", "proses checkout", "promosi"],
-    "Algoritma": ["rekomendasi", "algoritma", "tidak", "naik", "penonton", "suka", "pengikut", "interaksi", "jangkauan", "tayangan", "personal", "kurasi", "peringkat", "umpan", "jelajahi", "saran", "tren", "bayangan", "analisis", "wawasan", "pertumbuhan", "statistik", "visibilitas", "relevan", "serupa", "populer", "trending", "disesuaikan", "prioritas", "umpan", "rekomendasi pribadi", "pembelajaran mesin", "AI", "peringkat", "personalisasi", "gelembung filter", "bias"],
-    "Konektivitas": ["internet", "jaringan", "wifi", "sinyal", "putus", "offline", "koneksi", "seluler", "latensi", "kecepatan", "stabilitas", "ping", "hotspot", "bandwidth", "gangguan", "hilang", "lambat", "sambungan", "tidak stabil", "terputus", "mode offline", "online", "drop sinyal", "jaringan", "cakupan", "data", "konektivitas"],
+    "Features": ["fitur", "fungsi", "pembaruan", "filter", "efek", "stiker", "emoji", "duet", "gabung", "siaran", "unduh", "unggah", "edit", "rekam", "musik", "suara", "daftar putar", "komen", "obrolan", "cerita", "sorotan", "templat", "tanda", "pin", "penanda", "multiakun", "sinkronisasi", "simpan", "otomatis", "rekomendasi", "draft", "pemberitahuan", "ulang", "bagikan", "cadangan", "pulihkan", "impor", "ekspor", "perpustakaan", "konten", "penyesuaian", "potong", "privat", "publik", "caption", "lokasi", "rekaman", "langsung", "transisi", "kecepatan", "kolaborasi", "animasi", "watermark", "mode gelap", "pintasan", "loop", "pin video", "favorit", "sorot", "simpan otomatis", "duet teman", "kolaborasi", "reaksi cerita", "musik cerita", "tag", "mention", "polling", "stiker cerita", "jadwal posting"],
+    "Performance": ["cepat", "lambat", "lemot", "macet", "kesalahan", "memuat", "tutup", "terhenti", "bug", "beku", "tertunda", "fps", "optimal", "stabil", "respon", "memori", "prosesor", "grafik", "restart", "buffering", "panas", "waktu", "buruk", "ram", "baterai", "segarkan", "timeout", "drop", "perlambatan", "freeze", "lag", "loading", "macet klik", "panas berlebih", "cpu", "gpu", "refresh", "input", "server", "antarmuka", "pembaruan", "reaksi", "konten", "kecepatan", "lancar", "jitter", "lambat", "tunda", "crash", "hang", "restart aplikasi", "lag", "stutter", "startup", "shutdown", "boot", "fps drop", "gerakan lambat", "glitch"],
+    "Security": ["privasi", "izin", "keamanan", "data", "akun", "blokir", "tangguh", "peretas", "penipuan", "kata sandi", "enkripsi", "otp", "phishing", "ilegal", "verifikasi", "pelacakan", "bocor", "login", "perlindungan", "autentikasi", "pemulihan", "captcha", "virus", "spam", "tautan", "pemantauan", "identitas", "sadap", "transaksi", "logout", "pengaturan", "sidik jari", "wajah", "lokasi", "sensitif", "aman", "pihak ketiga", "notifikasi", "peringatan", "firewall", "antivirus", "cadangan", "keamanan data", "token", "hash", "verifikasi otp", "aman", "enkripsi AES", "TLS", "multi-faktor", "authenticator", "perlindungan data", "intrusi", "malware", "perekam tombol", "kebocoran privasi", "peringatan keamanan"],
+    "Service": ["layanan", "dukungan", "respon", "admin", "cs", "bantuan", "komplain", "laporan", "masukan", "obrolan", "tiket", "solusi", "panduan", "manual", "email", "tindak lanjut", "tutorial", "qa", "call center", "video", "teknis", "pengguna", "jawaban", "sopan", "lambat", "keluhan", "komunitas", "panduan lengkap", "dukungan", "helpdesk", "responsif", "sistem tiket", "umpan balik", "pemecahan masalah", "pelanggan", "servis desk", "obrolan langsung", "respon", "sla", "bantuan", "penyelesaian masalah", "panduan"],
+    "Content": ["konten", "video", "vidio", "viral", "tren", "tantangan", "negatif", "dewasa", "edukasi", "musik", "rekomendasi", "humor", "informasi", "berita", "mode", "kecantikan", "permainan", "kuliner", "tutorial", "ulasan", "unboxing", "cerita", "blog", "artikel", "headline", "infografis", "siaran", "reaksi", "parodi", "kolaborasi", "menarik", "baru", "pendek", "panjang", "lucu", "instruktif", "hiburan", "review", "pendidikan", "dokumenter", "podcast", "siaran langsung", "shorts", "sorotan", "sinematik", "klip viral"],
+    "Ads/Monetization": ["iklan", "berbayar", "koin", "hadiah", "dana", "penghasilan", "monetisasi", "sponsor", "promo", "langganan", "konten", "voucher", "kupon", "cashback", "harga", "ongkir", "pengiriman", "resi", "pelacakan", "kurir", "paket", "retur", "refund", "penukaran", "bayar", "pembayaran", "transfer", "saldo", "dompet", "invoice", "tagihan", "garansi", "status", "preorder", "cod", "kartu", "debit", "ewallet", "flash", "wishlist", "pengiriman", "pelacakan", "pengiriman paket", "pesanan", "penjual", "toko", "keranjang belanja", "proses checkout", "promosi"],
+    "Algorithm": ["rekomendasi", "algoritma", "tidak", "naik", "penonton", "suka", "pengikut", "interaksi", "jangkauan", "tayangan", "personal", "kurasi", "peringkat", "umpan", "jelajahi", "saran", "tren", "bayangan", "analisis", "wawasan", "pertumbuhan", "statistik", "visibilitas", "relevan", "serupa", "populer", "trending", "disesuaikan", "prioritas", "umpan", "rekomendasi pribadi", "pembelajaran mesin", "AI", "peringkat", "personalisasi", "gelembung filter", "bias"],
+    "Connectivity": ["internet", "jaringan", "wifi", "sinyal", "putus", "offline", "koneksi", "seluler", "latensi", "kecepatan", "stabilitas", "ping", "hotspot", "bandwidth", "gangguan", "hilang", "lambat", "sambungan", "tidak stabil", "terputus", "mode offline", "online", "drop sinyal", "jaringan", "cakupan", "data", "konektivitas"],
     "Audio": ["suara", "audio", "musik", "volume", "lirik", "lagu", "rekaman", "mikrofon", "gangguan", "penyeimbang", "headphone", "speaker", "bas", "treble", "loop", "hening", "jelas", "sinkronisasi", "efek", "karaoke", "pecah", "hilang", "lambat", "mic", "suara", "derau", "musik latar", "suara", "earphone", "distorsi", "umpan balik", "putar ulang", "equalizer", "level audio"],
-    "Notifikasi": ["notifikasi", "pemberitahuan", "tidak", "peringatan", "pengingat", "popup", "pembaruan", "lencana", "suara", "getar", "pesan", "pengaturan", "senyap", "tertunda", "kesalahan", "frekuensi", "pengingat", "peringatan", "push", "lencana", "informasi", "peringatan", "jadwal", "nada dering", "getar", "notifikasi"],
-    "Akses": ["masuk", "daftar", "verifikasi", "kata", "sandi", "nomor", "otp", "registrasi", "akun", "sosial", "lupa", "atur", "ulang", "autentikasi", "sidik jari", "wajah", "cepat", "sekali", "pulihkan", "mudah", "login", "masuk", "daftar", "atur ulang kata sandi", "kredensial", "token", "buka kunci", "login cepat"],
-    "Komunitas": ["komen", "balas", "ikuti", "bagikan", "lapor", "grup", "teman", "lingkaran", "tanda", "reaksi", "sebut", "diskusi", "forum", "obrolan", "kolaborasi", "interaksi", "posting", "permintaan", "interaksi", "aturan", "komunitas", "suka", "bagikan", "mention", "ikuti", "balas", "thread", "sosial", "diskusi", "umpan balik", "interaksi", "moderasi"],
-    "Penyimpanan": ["memori", "penyimpanan", "file", "boros", "cache", "unduh", "pembaruan", "optimalisasi", "kompresi", "cadangan", "sinkronisasi", "sementara", "pembersihan", "ruang", "aplikasi", "terbatas", "efisien", "penyimpanan", "disk", "kapasitas", "awan", "simpan", "cadangan", "arsip", "bebaskan", "optimalkan", "manajemen data"],
+    "Notification": ["notifikasi", "pemberitahuan", "tidak", "peringatan", "pengingat", "popup", "pembaruan", "lencana", "suara", "getar", "pesan", "pengaturan", "senyap", "tertunda", "kesalahan", "frekuensi", "pengingat", "peringatan", "push", "lencana", "informasi", "peringatan", "jadwal", "nada dering", "getar", "notifikasi"],
+    "Access": ["masuk", "daftar", "verifikasi", "kata", "sandi", "nomor", "otp", "registrasi", "akun", "sosial", "lupa", "atur", "ulang", "autentikasi", "sidik jari", "wajah", "cepat", "sekali", "pulihkan", "mudah", "login", "masuk", "daftar", "atur ulang kata sandi", "kredensial", "token", "buka kunci", "login cepat"],
+    "Community": ["komen", "balas", "ikuti", "bagikan", "lapor", "grup", "teman", "lingkaran", "tanda", "reaksi", "sebut", "diskusi", "forum", "obrolan", "kolaborasi", "interaksi", "posting", "permintaan", "interaksi", "aturan", "komunitas", "suka", "bagikan", "mention", "ikuti", "balas", "thread", "sosial", "diskusi", "umpan balik", "interaksi", "moderasi"],
+    "Storage": ["memori", "penyimpanan", "file", "boros", "cache", "unduh", "pembaruan", "optimalisasi", "kompresi", "cadangan", "sinkronisasi", "sementara", "pembersihan", "ruang", "aplikasi", "terbatas", "efisien", "penyimpanan", "disk", "kapasitas", "awan", "simpan", "cadangan", "arsip", "bebaskan", "optimalkan", "manajemen data"],
     "TiktokShop": ["belanja", "checkout", "keranjang", "produk", "diskon", "promo", "voucher", "kupon", "cashback", "harga", "ongkir", "pengiriman", "resi", "pelacakan", "kurir", "paket", "retur", "refund", "penukaran", "bayar", "pembayaran", "transfer", "saldo", "dompet", "invoice", "tagihan", "garansi", "status", "preorder", "cod", "kartu", "debit", "ewallet", "flash", "wishlist", "pengiriman", "pelacakan", "pengiriman paket", "pesanan", "penjual", "toko", "keranjang belanja", "proses checkout", "promosi"]
 }
 
 # ==========================================
-# 3. FUNGSI PEMUATAN DATA (UMUM & ASPEK)
+# 4. DATA LOADING FUNCTIONS
 # ==========================================
 
-# --- A. Loader untuk Analisis Topik (CSV Pertama) ---
+# --- A. Loader for Topic Analysis ---
 @st.cache_data
 def load_and_preprocess_data(filepath):
     try:
+        if not os.path.exists(filepath):
+            return pd.DataFrame()
+
         df = pd.read_csv(filepath)
         if 'at' not in df.columns:
-            st.error(f"Kolom 'at' tidak ditemukan di {filepath}!")
+            st.error(f"Column 'at' not found in {filepath}!")
             return pd.DataFrame()
         df['at'] = pd.to_datetime(df['at'], errors='coerce')
         df = df.dropna(subset=['at'])
@@ -64,17 +107,16 @@ def load_and_preprocess_data(filepath):
         if 'Sentiment_NB' in df.columns:
             df['Sentiment'] = df['Sentiment_NB']
         else:
-            st.error("Kolom 'Sentiment_NB' tidak ada!")
+            st.error("Column 'Sentiment_NB' missing!")
             return pd.DataFrame()
             
         return df
     except Exception as e:
-        # Jangan error keras jika file belum ada (agar halaman lain tetap jalan)
         return pd.DataFrame()
 
-# --- B. Loader & Processing untuk Analisis Aspek (CSV Kedua) ---
+# --- B. Loader & Processing for Aspect Analysis ---
 def detect_aspect_sentiment(text, sentiment):
-    """Mendeteksi aspek dalam teks dan memasangkan dengan sentimen."""
+    """Detects aspects in text and pairs them with sentiment."""
     results = []
     if isinstance(text, str):
         text_lower = text.lower()
@@ -85,47 +127,47 @@ def detect_aspect_sentiment(text, sentiment):
 
 @st.cache_data
 def process_aspect_data(filepath):
-    """Memproses data khusus untuk analisis aspek."""
+    """Processes specific data for aspect analysis."""
     if not os.path.exists(filepath):
         return None, None
         
     try:
         df = pd.read_csv(filepath)
         
-        # 1. Cek Kolom Wajib
+        # 1. Check Required Columns
         if 'at' not in df.columns: return None, None
         if 'content_clean' not in df.columns or 'sentiment' not in df.columns: return None, None
         
-        # 2. Preprocess Tanggal
+        # 2. Preprocess Date
         df['at'] = pd.to_datetime(df['at'], errors='coerce')
         
-        # 3. Deteksi Aspek (Ini bagian berat, makanya di-cache)
+        # 3. Detect Aspects
         df["aspek_sentimen"] = df.apply(
             lambda row: detect_aspect_sentiment(row["content_clean"], row["sentiment"]),
             axis=1
         )
         
-        # String untuk display/download
+        # String for display/download
         df["aspek_sentimen_str"] = df["aspek_sentimen"].apply(
             lambda x: ", ".join(x) if isinstance(x, list) else ""
         )
         
-        # 4. Explode Data (1 baris per aspek yang ditemukan)
+        # 4. Explode Data
         df_exploded = df.explode('aspek_sentimen')
         df_exploded = df_exploded.dropna(subset=['aspek_sentimen'])
         
-        # Ekstrak Nama Aspek dan Nilai Sentimen
+        # Extract Aspect Name and Sentiment Value
         df_exploded[['Aspek', 'Sentimen_Raw']] = (
             df_exploded['aspek_sentimen'].str.extract(r'(.*) \((.*)\)')
         )
         
-        # Mapping Label Sentimen (0.0 -> Negatif, 1.0 -> Positif)
+        # Map Sentiment Labels
         df_exploded['Sentimen_Label'] = df_exploded['Sentimen_Raw'].astype(float).map({
             0.0: 'Negative',
             1.0: 'Positive'
         })
         
-        # Kolom Bulan untuk Filter
+        # Month Column for Filter
         df_exploded['Bulan_Str'] = df_exploded['at'].dt.to_period('M').astype(str)
         
         return df, df_exploded
@@ -135,23 +177,23 @@ def process_aspect_data(filepath):
         return None, None
 
 # ==========================================
-# 4. HALAMAN - HALAMAN FITUR
+# 5. FEATURE PAGES
 # ==========================================
 
 def data_page(df):
-    """Halaman Utama: Distribusi Sentimen Global."""
-    st.header("📈 Distribusi Sentimen Global")
-    st.markdown("Ringkasan statistik sentimen dari seluruh data.")
+    """Main Page: Global Sentiment Distribution."""
+    st.header("📈 Global Sentiment Distribution")
+    st.markdown("Statistical summary of sentiment from all data.")
     
     st.sidebar.divider()
     st.sidebar.subheader("Filter Data")
     unique_months = sorted(df['month_name'].unique().tolist())
     selected_months = st.sidebar.multiselect(
-        "Pilih Bulan:", options=unique_months, default=unique_months, key="data_filter"
+        "Select Month:", options=unique_months, default=unique_months, key="data_filter"
     )
     
     if not selected_months:
-        st.warning("Pilih bulan di sidebar.")
+        st.warning("Please select a month in the sidebar.")
         return
         
     df_filtered = df[df['month_name'].isin(selected_months)]
@@ -160,20 +202,22 @@ def data_page(df):
     counts = df_filtered['Sentiment'].value_counts()
     
     c1, c2, c3 = st.columns(3)
-    c1.metric("Total Ulasan", f"{total:,}")
+    c1.metric("Total Reviews", f"{total:,}")
     if 'Positif' in counts:
-        c2.metric("Positif", f"{counts['Positif']:,}", f"{(counts['Positif']/total)*100:.1f}%")
+        c2.metric("Positive", f"{counts['Positif']:,}", f"{(counts['Positif']/total)*100:.1f}%")
     if 'Negatif' in counts:
-        c3.metric("Negatif", f"{counts['Negatif']:,}", f"{(counts['Negatif']/total)*100:.1f}%")
+        c3.metric("Negative", f"{counts['Negatif']:,}", f"{(counts['Negatif']/total)*100:.1f}%")
 
     c_chart1, c_chart2 = st.columns(2)
     with c_chart1:
-        st.subheader("Proporsi Sentimen")
-        fig = px.pie(names=counts.index, values=counts.values, color_discrete_map={'Positif':'green', 'Negatif':'red'})
+        st.subheader("Sentiment Proportion")
+        # Ensure colors match your preference (Green/Red or Pink/Red)
+        fig = px.pie(names=counts.index, values=counts.values, 
+                     color_discrete_map={'Positif':'green', 'Negatif':'red'})
         st.plotly_chart(fig, use_container_width=True)
         
     with c_chart2:
-        st.subheader("Sentimen per Topik")
+        st.subheader("Sentiment by Topic")
         df_top = df_filtered.groupby('topic')['Sentiment'].value_counts().unstack(fill_value=0).reset_index()
         cols_available = [c for c in ['Positif', 'Negatif'] if c in df_top.columns]
         df_top['Total'] = df_top[cols_available].sum(axis=1)
@@ -186,22 +230,32 @@ def data_page(df):
         st.plotly_chart(fig2, use_container_width=True)
 
 def home_page(df):
-    """Halaman Detail per Topik."""
-    st.header("🏡 Analisis Detail per Topik")
+    """Topic Detail Page."""
+    st.header("🏡 Detailed Topic Analysis")
     
     st.sidebar.divider()
-    st.sidebar.subheader("Filter Topik")
+    st.sidebar.subheader("Filter Topics")
     topics = df['topic'].unique().tolist()
-    sel_topic = st.sidebar.multiselect("Pilih Topik:", options=topics, default=[topics[0]] if topics else [])
+    sel_topic = st.sidebar.multiselect("Select Topic:", options=topics, default=[topics[0]] if topics else [])
     months = sorted(df['month_name'].unique().tolist())
-    sel_month = st.sidebar.multiselect("Pilih Bulan:", options=months, default=months, key="topic_filter_month")
+    sel_month = st.sidebar.multiselect("Select Month:", options=months, default=months, key="topic_filter_month")
     
     if not sel_topic or not sel_month:
-        st.warning("Pilih topik dan bulan.")
+        st.warning("Please select topics and months.")
         return
 
     df_f = df[(df['topic'].isin(sel_topic)) & (df['month_name'].isin(sel_month))]
-    if df_f.empty: st.info("Data kosong."); return
+    
+    # === DATA DISTRIBUTION IN SIDEBAR ===
+    if not df_f.empty:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔢 Data Distribution (Filtered)")
+        topic_counts = df_f['topic'].value_counts().reset_index()
+        topic_counts.columns = ['Topic', 'Count']
+        st.sidebar.dataframe(topic_counts, hide_index=True, use_container_width=True)
+    # =========================================
+
+    if df_f.empty: st.info("No data available."); return
 
     fig = px.bar(df_f.groupby(['topic', 'Sentiment']).size().reset_index(name='Jml'), 
                  x='Sentiment', y='Jml', color='Sentiment', facet_col='topic',
@@ -209,40 +263,49 @@ def home_page(df):
     st.plotly_chart(fig, use_container_width=True)
 
 def about_page(df):
-    """Halaman Tren Waktu."""
-    st.header("⏰ Analisis Tren Waktu")
+    """Time Trend Page."""
+    st.header("⏰ Time Trend Analysis")
     
     st.sidebar.divider()
-    st.sidebar.subheader("Filter Waktu Global")
+    st.sidebar.subheader("Global Time Filter")
     months = sorted(df['month_name'].unique().tolist())
-    sel_month = st.sidebar.multiselect("Pilih Bulan:", options=months, default=months, key="time_filter")
+    sel_month = st.sidebar.multiselect("Select Month:", options=months, default=months, key="time_filter")
     
-    if not sel_month: st.warning("Silakan pilih bulan."); return
+    if not sel_month: st.warning("Please select a month."); return
     
     df_f = df[df['month_name'].isin(sel_month)]
+
+    # === DATA COUNT IN SIDEBAR ===
+    if not df_f.empty:
+        st.sidebar.markdown("---")
+        st.sidebar.subheader("🔢 Data Count per Topic")
+        topic_counts_trend = df_f['topic'].value_counts().reset_index()
+        topic_counts_trend.columns = ['Topic', 'Count']
+        st.sidebar.dataframe(topic_counts_trend, hide_index=True, use_container_width=True)
+    # =========================================
     
-    tab1, tab2, tab3 = st.tabs(["📊 Tren Sentimen Global", "🔥 Tren Popularitas Topik", "🎯 Tren Spesifik per Topik"])
+    tab1, tab2, tab3 = st.tabs(["📊 Global Sentiment Trend", "🔥 Topic Popularity Trend", "🎯 Specific Trend per Topic"])
 
     with tab1:
-        st.subheader("Pergerakan Sentimen Harian")
+        st.subheader("Daily Sentiment Movement")
         daily = df_f.groupby([df_f['at'].dt.date, 'Sentiment']).size().reset_index(name='Jml')
         fig1 = px.line(daily, x='at', y='Jml', color='Sentiment', 
                       color_discrete_map={'Positif':'green', 'Negatif':'red'}, markers=True)
         st.plotly_chart(fig1, use_container_width=True)
 
     with tab2:
-        st.subheader("Pergerakan Popularitas Topik")
+        st.subheader("Topic Popularity Movement")
         daily_topic = df_f.groupby([df_f['at'].dt.date, 'topic']).size().reset_index(name='Jml')
         fig2 = px.line(daily_topic, x='at', y='Jml', color='topic', markers=True)
         fig2.update_layout(hovermode="x unified")
         st.plotly_chart(fig2, use_container_width=True)
 
     with tab3:
-        st.subheader("Analisis Mendalam: Topik & Sentimen Spesifik")
+        st.subheader("Deep Dive: Specific Topic & Sentiment")
         c1, c2 = st.columns(2)
         topic_opt = sorted(df_f['topic'].unique())
-        choosen_topic = c1.selectbox("Pilih Topik:", topic_opt)
-        choosen_sentiment = c2.radio("Pilih Sentimen:", ["Positif", "Negatif"], horizontal=True)
+        choosen_topic = c1.selectbox("Select Topic:", topic_opt)
+        choosen_sentiment = c2.radio("Select Sentiment:", ["Positif", "Negatif"], horizontal=True)
         
         df_detail = df_f[(df_f['topic'] == choosen_topic) & (df_f['Sentiment'] == choosen_sentiment)]
         
@@ -253,27 +316,27 @@ def about_page(df):
             fig3.update_traces(line_color=color_map)
             st.plotly_chart(fig3, use_container_width=True)
         else:
-            st.warning("Data tidak ditemukan untuk kombinasi ini.")
+            st.warning("No data found for this combination.")
 
 def wordcloud_page(df):
-    """Halaman Visualisasi Word Cloud."""
+    """Word Cloud Visualization Page."""
     st.header("☁️ Word Cloud Analysis")
     
     st.sidebar.divider()
-    st.sidebar.subheader("Filter Word Cloud")
+    st.sidebar.subheader("Word Cloud Filter")
     months = sorted(df['month_name'].unique().tolist())
-    sel_month = st.sidebar.multiselect("Pilih Bulan:", options=months, default=months, key="wc_month")
-    sentiment_opt = st.sidebar.radio("Pilih Sentimen:", ["Positif", "Negatif", "Gabungan (Semua)"], key="wc_sentiment")
+    sel_month = st.sidebar.multiselect("Select Month:", options=months, default=months, key="wc_month")
+    sentiment_opt = st.sidebar.radio("Select Sentiment:", ["Positif", "Negatif", "Combined (All)"], key="wc_sentiment")
     
     if not sel_month:
-        st.warning("Silakan pilih setidaknya satu bulan di sidebar.")
+        st.warning("Please select at least one month in the sidebar.")
         return
 
     df_wc = df[df['month_name'].isin(sel_month)]
     
     if sentiment_opt == "Positif":
         df_wc = df_wc[df_wc['Sentiment'] == 'Positif']
-        colormap_style = "Greens"
+        colormap_style = "Blues"  # As per your latest code
     elif sentiment_opt == "Negatif":
         df_wc = df_wc[df_wc['Sentiment'] == 'Negatif']
         colormap_style = "Reds"
@@ -281,14 +344,14 @@ def wordcloud_page(df):
         colormap_style = "viridis"
 
     if df_wc.empty:
-        st.info(f"Tidak ada data ulasan {sentiment_opt} pada bulan yang dipilih.")
+        st.info(f"No review data for {sentiment_opt} in the selected month.")
         return
 
     text_col = 'final_text' if 'final_text' in df.columns else 'content'
     all_text = " ".join(df_wc[text_col].astype(str).tolist())
     
     if not all_text.strip():
-        st.warning("Data teks kosong, tidak bisa membuat Word Cloud.")
+        st.warning("Text data is empty, cannot generate Word Cloud.")
         return
 
     wc = WordCloud(width=800, height=400, background_color='white', colormap=colormap_style, min_font_size=10).generate(all_text)
@@ -299,128 +362,112 @@ def wordcloud_page(df):
     ax.axis("off")
     st.pyplot(fig)
     
-    with st.expander(f"Lihat Sampel Ulasan ({sentiment_opt})"):
+    with st.expander(f"View Review Samples ({sentiment_opt})"):
         st.dataframe(df_wc[[text_col, 'Sentiment']].head(10), use_container_width=True)
 
-# --- HALAMAN BARU: ANALISIS ASPEK (TIKTOK) ---
+# --- ASPECT ANALYSIS PAGE ---
 def aspect_analysis_page():
-    """Halaman Analisis Aspek (Fitur baru yang diminta)."""
-    st.header("📱 Analisis Sentimen Berbasis Aspek (TikTok)")
-    st.markdown("Analisis UI/UX, Fitur, Performa, dll berdasarkan data aspek.")
+    """Aspect Analysis Page."""
+    st.header("📱 Aspect-Based Sentiment Analysis (TikTok)")
+    st.markdown("Analysis of UI/UX, Features, Performance, etc. based on aspect data.")
 
-    # Cek apakah file aspek ada
+    # Check if aspect file exists locally
     if not os.path.exists(CSV_ASPEK_PATH):
-        st.error(f"File '{CSV_ASPEK_PATH}' tidak ditemukan di folder!")
-        st.info("Pastikan file hasil analisis aspek sudah diupload ke folder yang sama dengan app.py")
+        st.error(f"File '{CSV_ASPEK_PATH}' not yet available. Attempting to download...")
         return
 
-    # Load data aspek
-    with st.spinner('Sedang memproses aspek dan sentimen...'):
+    # Load aspect data
+    with st.spinner('Processing aspects and sentiments...'):
         df_proc, df_exp = process_aspect_data(CSV_ASPEK_PATH)
     
     if df_proc is None or df_exp is None:
-        st.error("Gagal memproses data aspek.")
+        st.error("Failed to process aspect data.")
         return
 
-    # --- SIDEBAR FILTER KHUSUS HALAMAN INI ---
+    # --- SIDEBAR FILTER FOR THIS PAGE ---
     st.sidebar.divider()
-    st.sidebar.subheader("Filter Aspek")
+    st.sidebar.subheader("Filter Aspects")
     
     list_bulan = sorted(df_exp['Bulan_Str'].unique())
     selected_months = st.sidebar.multiselect(
-        "Pilih Bulan Aspek:", 
+        "Select Aspect Month:", 
         options=list_bulan, 
-        default=[list_bulan[-1]] if list_bulan else [], 
+        default=list_bulan, # DEFAULT: ALL MONTHS
         key="aspect_month_selector"
     )
     
-    st.sidebar.info(f"Total data: {len(df_proc)} ulasan.")
-
-    # --- TABS VISUALISASI ---
-    tab1, tab2, tab3 = st.tabs(["📊 Analisis Keseluruhan", "📈 Analisis Filter Bulan", "📥 Data Hasil"])
+    # --- VISUALIZATION TABS ---
+    tab1, tab2 = st.tabs(["📊 Overall Analysis", "📈 Monthly Filter Analysis"])
     
     # Tab 1: Total
     with tab1:
-        st.subheader("Distribusi Sentimen per Aspek (Total Semua Data)")
-        total_counts = df_exp.groupby(['Aspek', 'Sentimen_Label']).size().reset_index(name='Jumlah')
+        st.subheader("Sentiment Distribution per Aspect (Total)")
+        total_counts = df_exp.groupby(['Aspek', 'Sentimen_Label']).size().reset_index(name='Count')
         
         fig, ax = plt.subplots(figsize=(12, 6))
-        sns.barplot(data=total_counts, x="Aspek", y="Jumlah", hue="Sentimen_Label", 
+        sns.barplot(data=total_counts, x="Aspek", y="Count", hue="Sentimen_Label", 
                     palette={'Negative': '#ff6b6b', 'Positive': '#51cf66'}, ax=ax)
-        ax.set_title("Total Ulasan per Aspek dan Sentimen")
+        ax.set_title("Total Reviews per Aspect and Sentiment")
         ax.set_xticklabels(ax.get_xticklabels(), rotation=45, ha="right")
         ax.grid(axis='y', linestyle='--', alpha=0.5)
         st.pyplot(fig)
 
-    # Tab 2: Filter Bulan
+    # Tab 2: Filter Month
     with tab2:
         if selected_months:
-            st.subheader(f"Analisis Aspek untuk Bulan: {', '.join(selected_months)}")
+            st.subheader(f"Aspect Analysis for: {', '.join(selected_months)}")
             
             monthly_data = df_exp[df_exp['Bulan_Str'].isin(selected_months)]
-            monthly_counts = monthly_data.groupby(['Aspek', 'Sentimen_Label']).size().reset_index(name='Jumlah')
+            monthly_counts = monthly_data.groupby(['Aspek', 'Sentimen_Label']).size().reset_index(name='Count')
             
             if not monthly_counts.empty:
                 fig_m, ax_m = plt.subplots(figsize=(12, 6))
-                sns.barplot(data=monthly_counts, x="Aspek", y="Jumlah", hue="Sentimen_Label", 
+                sns.barplot(data=monthly_counts, x="Aspek", y="Count", hue="Sentimen_Label", 
                             palette={'Negative': '#ff6b6b', 'Positive': '#51cf66'}, ax=ax_m)
-                ax_m.set_title(f"Distribusi Sentimen Gabungan ({', '.join(selected_months)})")
+                ax_m.set_title(f"Combined Sentiment Distribution ({', '.join(selected_months)})")
                 ax_m.set_xticklabels(ax_m.get_xticklabels(), rotation=45, ha="right")
                 ax_m.grid(axis='y', linestyle='--', alpha=0.5)
                 st.pyplot(fig_m)
             else:
-                st.warning("Tidak ada data aspek ditemukan pada bulan yang dipilih.")
+                st.warning("No aspect data found for the selected months.")
         else:
-            st.warning("Silakan pilih bulan di sidebar.")
-
-    # Tab 3: Data
-    with tab3:
-        st.subheader("Data Hasil Analisis")
-        st.dataframe(df_proc[['content_clean', 'sentiment', 'aspek_sentimen_str']].head(100))
-        
-        csv_buffer = df_proc.to_csv(index=False).encode('utf-8')
-        st.download_button(
-            label="Download CSV Lengkap",
-            data=csv_buffer,
-            file_name="tiktok_sentiment_with_aspects.csv",
-            mime="text/csv"
-        )
+            st.warning("Please select a month in the sidebar.")
 
 def welcome_page():
-    st.title("Tentang Aplikasi")
-    st.info("Aplikasi Dashboard Analisis Sentimen TikTok (Topik, Tren, dan Aspek UI/UX).")
+    st.title("About the App")
+    st.info("TikTok Sentiment Analysis Dashboard (Topics, Trends, and UI/UX Aspects).")
 
 # ==========================================
-# 5. MAIN LOGIC (NAVIGASI)
+# 6. MAIN LOGIC (NAVIGATION)
 # ==========================================
 
-# Load Data Topik (Untuk fitur-fitur lama)
+# Load Topic Data
 df_topic = load_and_preprocess_data(CSV_TOPIK_PATH)
 
-# Definisi Menu (Tambah menu "Analisis Aspek")
+# Menu Definitions
 MENU_OPTIONS = {
-    "📈 Distribusi Sentimen": "data",
-    "🏡 Analisis Topik": "home",
-    "⏰ Tren Waktu": "about",
+    "📈 Sentiment Distribution": "data",
+    "🏡 Topic Analysis": "home",
+    "⏰ Time Trend": "about",
     "☁️ Word Cloud": "wordcloud",
-    "📱 Analisis Aspek (UI/UX)": "aspect", # <--- Menu Baru Ditambahkan Disini
-    "ℹ️ Info Aplikasi": "welcome"
+    "📱 ABSA (Aspect Analysis)": "aspect",
+    "ℹ️ App Info": "welcome"
 }
 
-st.sidebar.title("Navigasi")
-selection = st.sidebar.radio("Pilih Halaman:", list(MENU_OPTIONS.keys()))
+st.sidebar.title("Navigation")
+selection = st.sidebar.radio("Select Page:", list(MENU_OPTIONS.keys()))
 page = MENU_OPTIONS[selection]
 
-# Routing Halaman
+# Page Routing
 if page == "aspect":
-    # Halaman Aspek punya data loader sendiri, jadi langsung panggil
+    # Aspect Page
     aspect_analysis_page()
 
 elif page == "welcome":
     welcome_page()
 
 else:
-    # Halaman lain butuh data topik, cek dulu datanya ada atau tidak
+    # Other pages require topic data
     if not df_topic.empty:
         if page == "data":
             data_page(df_topic)
@@ -431,4 +478,4 @@ else:
         elif page == "wordcloud":
             wordcloud_page(df_topic)
     else:
-        st.warning(f"Menunggu data topik ('{CSV_TOPIK_PATH}')... atau file tidak ditemukan.")
+        st.warning(f"Waiting for topic data ('{CSV_TOPIK_PATH}')... or file not yet available.")
