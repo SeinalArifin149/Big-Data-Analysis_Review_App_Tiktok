@@ -1,0 +1,9 @@
+[theme]
+base="light"
+
+# 1. Warna Teks Utama (Paragraf, Judul, Label)
+textColor="#000000"  
+
+# 2. Warna Teks Interaktif (Link, Tombol aktif, Sorotan)
+# Hati-hati, ini juga mengubah warna tombol dan garis pinggir input
+primaryColor="#FF4B4B"
